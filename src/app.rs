@@ -305,10 +305,8 @@ impl App {
             let _ = tx.send(SummaryResult { article_id, result }).await;
         });
 
-        // Update local article state without reloading (keep article visible)
-        if let Some(article) = self.articles.iter_mut().find(|a| a.id == article_id) {
-            article.is_read = true;
-        }
+        // Don't update local is_read state - keep article visible in filtered list
+        // Database is already updated, so it will show as read next session
 
         Ok(())
     }
@@ -426,8 +424,7 @@ impl App {
             }
         }
 
-        // Reload to update read status in the list
-        self.reload_articles().await?;
+        // Don't reload - keep article visible in filtered list this session
 
         Ok(())
     }
