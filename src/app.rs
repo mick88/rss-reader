@@ -214,8 +214,8 @@ impl App {
     }
 
     async fn on_selection_changed(&mut self) -> Result<()> {
-        // Reload articles to remove any that were marked read
-        self.reload_articles().await?;
+        // Don't reload articles - keep read articles visible until program closes
+        // They'll just appear unhighlighted in the list
 
         // Reset summary state when selection changes
         self.summary_status = SummaryStatus::NotGenerated;
