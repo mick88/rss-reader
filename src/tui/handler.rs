@@ -14,6 +14,7 @@ pub enum AppAction {
     SaveToRaindrop,
     CycleFilter,
     RegenerateSummary,
+    DeleteArticle,
     #[allow(dead_code)]
     ImportOpml(PathBuf),
     ShowHelp,
@@ -59,6 +60,7 @@ pub fn handle_key_event(key: KeyEvent, tag_input_active: bool, show_help: bool) 
         (KeyCode::Char('S'), _) => Some(AppAction::SaveToRaindrop),
         (KeyCode::Char('f'), _) => Some(AppAction::CycleFilter),
         (KeyCode::Char('g'), _) => Some(AppAction::RegenerateSummary),
+        (KeyCode::Char('d'), _) => Some(AppAction::DeleteArticle),
 
         (KeyCode::Char('?'), _) => Some(AppAction::ShowHelp),
 

@@ -160,6 +160,23 @@ impl Repository {
         Ok(())
     }
 
+    pub async fn delete_article(&self, id: i64) -> Result<()> {
+        self.conn
+            .call(move |conn| {
+                // Delete related data first
+                conn.execute("DELETE FROM summaries WHERE article_id = ?1", params![id])?;
+                conn.execute(
+                    "DELETE FROM saved_to_raindrop WHERE article_id = ?1",
+                    params![id],
+                )?;
+                // Delete the article
+                conn.execute("DELETE FROM articles WHERE id = ?1", params![id])?;
+                Ok(())
+            })
+            .await?;
+        Ok(())
+    }
+
     // Summary operations
 
     pub async fn get_summary(&self, article_id: i64) -> Result<Option<Summary>> {

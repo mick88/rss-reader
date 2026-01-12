@@ -178,6 +178,23 @@ impl App {
                 self.generate_summary().await?;
             }
 
+            AppAction::DeleteArticle => {
+                if let Some(article) = self.selected_article() {
+                    let id = article.id;
+                    self.repository.delete_article(id).await?;
+                    // Remove from local list
+                    self.articles.retain(|a| a.id != id);
+                    // Adjust selection if needed
+                    let len = self.filtered_articles().len();
+                    if len > 0 && self.selected_index >= len {
+                        self.selected_index = len - 1;
+                    }
+                    // Reset summary state
+                    self.summary_status = SummaryStatus::NotGenerated;
+                    self.current_summary = None;
+                }
+            }
+
             AppAction::ImportOpml(path) => {
                 self.import_opml(&path).await?;
             }
