@@ -62,12 +62,22 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
 fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     let filter_label = app.filter.label();
+    let total_articles = app.articles.len();
+    let unread_count = app.articles.iter().filter(|a| !a.is_read).count();
+
     let title = format!(" RSS Reader [{filter_label}] ");
+    let stats = format!(" {} Stories | {} Unread", total_articles, unread_count);
+
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
     frame.render_widget(block, area);
+
+    let paragraph = Paragraph::new(stats).style(Style::default().fg(Color::White));
+    frame.render_widget(paragraph, inner);
 }
 
 fn render_article_list(frame: &mut Frame, app: &App, area: Rect) {

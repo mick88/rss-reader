@@ -66,6 +66,12 @@ impl App {
 
         let content_fetcher = ContentFetcher::new();
 
+        // Clean up articles older than 7 days
+        let deleted = repository.delete_old_articles(7).await?;
+        if deleted > 0 {
+            tracing::info!("Deleted {} articles older than 7 days", deleted);
+        }
+
         let feeds = repository.get_all_feeds().await?;
         let articles = repository.get_all_articles_sorted().await?;
 
@@ -418,6 +424,12 @@ impl App {
             self.repository.update_feed_last_fetched(feed_id).await?;
         }
 
+        // Clean up articles older than 7 days after refresh
+        let deleted = self.repository.delete_old_articles(7).await?;
+        if deleted > 0 {
+            tracing::info!("Deleted {} articles older than 7 days", deleted);
+        }
+
         self.reload_articles().await?;
         self.is_refreshing = false;
 
@@ -449,11 +461,21 @@ impl App {
         let url = article.url.clone();
         let title = article.title.clone();
 
-        // Get excerpt: prefer summary, fall back to first sentence of article content
+        // Get excerpt: prefer full summary (cleaned), fall back to first sentence of article content
         let excerpt = self
             .current_summary
             .as_ref()
-            .map(|s| Self::get_first_sentence(&s.content))
+            .map(|s| {
+                // Remove "Summary:" prefix and clean up blank lines
+                s.content
+                    .lines()
+                    .filter(|line| !line.trim().is_empty() && !line.trim().eq_ignore_ascii_case("summary:"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .trim()
+                    .to_string()
+            })
+            .filter(|s| !s.is_empty())
             .or_else(|| {
                 article
                     .content_text

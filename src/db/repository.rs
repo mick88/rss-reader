@@ -177,6 +177,40 @@ impl Repository {
         Ok(())
     }
 
+    pub async fn delete_old_articles(&self, days: i64) -> Result<usize> {
+        let deleted = self
+            .conn
+            .call(move |conn| {
+                // Delete summaries and raindrop entries for old articles first
+                conn.execute(
+                    r#"DELETE FROM summaries WHERE article_id IN (
+                        SELECT id FROM articles
+                        WHERE published_at < datetime('now', '-' || ?1 || ' days')
+                           OR (published_at IS NULL AND fetched_at < datetime('now', '-' || ?1 || ' days'))
+                    )"#,
+                    params![days],
+                )?;
+                conn.execute(
+                    r#"DELETE FROM saved_to_raindrop WHERE article_id IN (
+                        SELECT id FROM articles
+                        WHERE published_at < datetime('now', '-' || ?1 || ' days')
+                           OR (published_at IS NULL AND fetched_at < datetime('now', '-' || ?1 || ' days'))
+                    )"#,
+                    params![days],
+                )?;
+                // Delete old articles (using published_at, fallback to fetched_at if null)
+                let deleted = conn.execute(
+                    r#"DELETE FROM articles
+                       WHERE published_at < datetime('now', '-' || ?1 || ' days')
+                          OR (published_at IS NULL AND fetched_at < datetime('now', '-' || ?1 || ' days'))"#,
+                    params![days],
+                )?;
+                Ok(deleted)
+            })
+            .await?;
+        Ok(deleted)
+    }
+
     // Summary operations
 
     pub async fn get_summary(&self, article_id: i64) -> Result<Option<Summary>> {
