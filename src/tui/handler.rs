@@ -1,5 +1,4 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum AppAction {
@@ -17,8 +16,6 @@ pub enum AppAction {
     RegenerateSummary,
     DeleteArticle,
     AddFeed,
-    #[allow(dead_code)]
-    ImportOpml(PathBuf),
     ShowHelp,
     HideHelp,
     // Tag input actions
@@ -31,12 +28,19 @@ pub enum AppAction {
     FeedInputBackspace,
     FeedInputConfirm,
     FeedInputCancel,
+    // OPML input actions
+    ImportOpmlStart,
+    OpmlInputChar(char),
+    OpmlInputBackspace,
+    OpmlInputConfirm,
+    OpmlInputCancel,
 }
 
 pub fn handle_key_event(
     key: KeyEvent,
     tag_input_active: bool,
     feed_input_active: bool,
+    opml_input_active: bool,
     show_help: bool,
 ) -> Option<AppAction> {
     // If help is showing, any key closes it
@@ -66,6 +70,17 @@ pub fn handle_key_event(
         };
     }
 
+    // OPML input mode
+    if opml_input_active {
+        return match key.code {
+            KeyCode::Enter => Some(AppAction::OpmlInputConfirm),
+            KeyCode::Esc => Some(AppAction::OpmlInputCancel),
+            KeyCode::Backspace => Some(AppAction::OpmlInputBackspace),
+            KeyCode::Char(c) => Some(AppAction::OpmlInputChar(c)),
+            _ => None,
+        };
+    }
+
     // Normal mode
     match (key.code, key.modifiers) {
         (KeyCode::Char('q'), _) => Some(AppAction::Quit),
@@ -86,6 +101,7 @@ pub fn handle_key_event(
         (KeyCode::Char('g'), _) => Some(AppAction::RegenerateSummary),
         (KeyCode::Char('d'), _) => Some(AppAction::DeleteArticle),
         (KeyCode::Char('a'), _) => Some(AppAction::AddFeed),
+        (KeyCode::Char('i'), _) => Some(AppAction::ImportOpmlStart),
 
         (KeyCode::Char('?'), _) => Some(AppAction::ShowHelp),
 

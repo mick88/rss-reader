@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -34,6 +34,9 @@ pub struct App {
     pub feed_input_active: bool,
     pub feed_input: String,
     pub feed_input_status: Option<String>,
+    pub opml_input_active: bool,
+    pub opml_input: String,
+    pub opml_input_status: Option<String>,
     pub is_saved_to_raindrop: bool,
     selection_time: Option<Instant>,
 
@@ -92,6 +95,9 @@ impl App {
             feed_input_active: false,
             feed_input: String::new(),
             feed_input_status: None,
+            opml_input_active: false,
+            opml_input: String::new(),
+            opml_input_status: None,
             is_saved_to_raindrop: false,
             selection_time: None,
             is_refreshing: false,
@@ -217,10 +223,6 @@ impl App {
                 }
             }
 
-            AppAction::ImportOpml(path) => {
-                self.import_opml(&path).await?;
-            }
-
             AppAction::ShowHelp => {
                 self.show_help = true;
             }
@@ -270,6 +272,30 @@ impl App {
                 self.feed_input_active = false;
                 self.feed_input.clear();
                 self.feed_input_status = None;
+            }
+
+            AppAction::ImportOpmlStart => {
+                self.opml_input_active = true;
+                self.opml_input.clear();
+                self.opml_input_status = None;
+            }
+
+            AppAction::OpmlInputChar(c) => {
+                self.opml_input.push(c);
+            }
+
+            AppAction::OpmlInputBackspace => {
+                self.opml_input.pop();
+            }
+
+            AppAction::OpmlInputConfirm => {
+                self.import_opml_from_input().await?;
+            }
+
+            AppAction::OpmlInputCancel => {
+                self.opml_input_active = false;
+                self.opml_input.clear();
+                self.opml_input_status = None;
             }
         }
 
@@ -666,6 +692,46 @@ impl App {
 
         // Refresh the newly imported feeds
         self.refresh_feeds().await?;
+
+        Ok(())
+    }
+
+    async fn import_opml_from_input(&mut self) -> Result<()> {
+        let input = self.opml_input.trim().to_string();
+        if input.is_empty() {
+            self.opml_input_status = Some("Enter a file path".to_string());
+            return Ok(());
+        }
+
+        // Expand ~ to home directory
+        let expanded = if input.starts_with("~/") {
+            if let Some(home) = dirs::home_dir() {
+                home.join(&input[2..])
+            } else {
+                PathBuf::from(&input)
+            }
+        } else {
+            PathBuf::from(&input)
+        };
+
+        self.opml_input_status = Some("Importing...".to_string());
+
+        if !expanded.exists() {
+            self.opml_input_status = Some("Not found: file does not exist".to_string());
+            return Ok(());
+        }
+
+        match self.import_opml(&expanded).await {
+            Ok(()) => {
+                let count = self.feeds.len();
+                self.opml_input_status = Some(format!("Imported! {} feeds total", count));
+                self.opml_input_active = false;
+                self.opml_input.clear();
+            }
+            Err(e) => {
+                self.opml_input_status = Some(format!("Error: {}", e));
+            }
+        }
 
         Ok(())
     }

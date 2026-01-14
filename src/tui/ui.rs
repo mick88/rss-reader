@@ -61,6 +61,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
         render_feed_input(frame, app);
     }
 
+    // Render OPML input popup if active
+    if app.opml_input_active {
+        render_opml_input(frame, app);
+    }
+
     // Render help popup if active
     if app.show_help {
         render_help(frame);
@@ -287,6 +292,44 @@ fn render_feed_input(frame: &mut Frame, app: &App) {
     }
 }
 
+fn render_opml_input(frame: &mut Frame, app: &App) {
+    let area = centered_rect(70, 25, frame.area());
+
+    let block = Block::default()
+        .title(" Import OPML - Enter file path ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+
+    let inner = block.inner(area);
+
+    // Clear the area first
+    frame.render_widget(ratatui::widgets::Clear, area);
+    frame.render_widget(block, area);
+
+    // Split inner area for input and status
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1), Constraint::Min(0)])
+        .split(inner);
+
+    let input_text = format!("> {}_", app.opml_input);
+    let paragraph = Paragraph::new(input_text).style(Style::default().fg(Color::White));
+    frame.render_widget(paragraph, chunks[0]);
+
+    // Show status message if any
+    if let Some(status) = &app.opml_input_status {
+        let color = if status.starts_with("Imported") {
+            Color::Green
+        } else if status.starts_with("Error:") || status.starts_with("Not found:") {
+            Color::Red
+        } else {
+            Color::DarkGray
+        };
+        let status_paragraph = Paragraph::new(status.as_str()).style(Style::default().fg(color));
+        frame.render_widget(status_paragraph, chunks[1]);
+    }
+}
+
 fn render_help(frame: &mut Frame) {
     let area = centered_rect(50, 60, frame.area());
 
@@ -300,6 +343,7 @@ fn render_help(frame: &mut Frame) {
         " Actions:",
         "   r        Refresh all feeds",
         "   a        Add new feed",
+        "   i        Import OPML file",
         "   s        Toggle starred",
         "   m        Toggle read/unread",
         "   o        Open in browser",
