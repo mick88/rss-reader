@@ -11,7 +11,7 @@ Built for personal use, entirely vibe coded with [Claude Code](https://claude.ai
 - **Feed discovery**: Add feeds by URL with automatic RSS/Atom detection
 - **Raindrop.io integration**: Bookmark articles with AI summary in notes
 - **Permanent delete**: Deleted articles won't return on refresh
-- **OPML import**: Import feed subscriptions
+- **OPML import/export**: Import and export feed subscriptions
 - **SQLite caching**: Offline reading with 7-day retention
 - **Auto-mark read**: Articles marked read after 2 seconds
 
@@ -60,6 +60,8 @@ speedy-reader --refresh
 | `Enter` | Generate/show summary |
 | `r` | Refresh all feeds |
 | `a` | Add new feed |
+| `i` | Import OPML file |
+| `w` | Export OPML file |
 | `s` | Toggle starred |
 | `m` | Toggle read/unread |
 | `o` | Open in browser |
