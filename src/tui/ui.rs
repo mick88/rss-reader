@@ -11,12 +11,12 @@ use crate::app::App;
 use crate::models::SummaryStatus;
 
 pub fn draw(frame: &mut Frame, app: &App) {
-    // Main horizontal split: 1/3 left, 2/3 right
+    // Main horizontal split: narrower left, wider right
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Ratio(1, 3), // Left pane: article list
-            Constraint::Ratio(2, 3), // Right pane: summary
+            Constraint::Percentage(27), // Left pane: article list
+            Constraint::Percentage(73), // Right pane: summary
         ])
         .split(frame.area());
 
@@ -110,25 +110,30 @@ fn render_article_list(frame: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(Color::White)
             };
 
-            let day = article
+            let (day, date) = article
                 .published_at
                 .map(|dt| {
-                    match dt.weekday() {
-                        chrono::Weekday::Mon => "M  ",
-                        chrono::Weekday::Tue => "T  ",
-                        chrono::Weekday::Wed => "W  ",
-                        chrono::Weekday::Thu => "Th ",
-                        chrono::Weekday::Fri => "F  ",
-                        chrono::Weekday::Sat => "Sa ",
-                        chrono::Weekday::Sun => "Su ",
-                    }
+                    let day = match dt.weekday() {
+                        chrono::Weekday::Mon => "M ",
+                        chrono::Weekday::Tue => "T ",
+                        chrono::Weekday::Wed => "W ",
+                        chrono::Weekday::Thu => "Th",
+                        chrono::Weekday::Fri => "F ",
+                        chrono::Weekday::Sat => "Sa",
+                        chrono::Weekday::Sun => "Su",
+                    };
+                    let date = format!("{:02}-{:02}", dt.month(), dt.day());
+                    (day, date)
                 })
-                .unwrap_or("?  ");
-            let title = &article.title;
+                .unwrap_or(("? ", "??-??".to_string()));
+            let feed = article.feed_title.as_deref().unwrap_or("Unknown");
 
             let line = Line::from(vec![
                 Span::styled(day, Style::default().fg(Color::DarkGray)),
-                Span::styled(title, style),
+                Span::styled(" ", Style::default()),
+                Span::styled(date, Style::default().fg(Color::DarkGray)),
+                Span::styled(" ", Style::default()),
+                Span::styled(feed.to_string(), style),
             ]);
 
             ListItem::new(line)
@@ -396,7 +401,7 @@ fn render_opml_export(frame: &mut Frame, app: &App) {
 }
 
 fn render_help(frame: &mut Frame) {
-    let area = centered_rect(50, 60, frame.area());
+    let area = centered_rect(50, 80, frame.area());
 
     let help_text = vec![
         "",
@@ -419,6 +424,7 @@ fn render_help(frame: &mut Frame) {
         "   g        Regenerate summary",
         "   f        Cycle filter",
         "   d        Delete article",
+        "   D        Delete feed",
         "   u        Undelete last",
         "",
         " General:",

@@ -69,7 +69,6 @@ impl Repository {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn delete_feed(&self, id: i64) -> Result<()> {
         self.conn
             .call(move |conn| {

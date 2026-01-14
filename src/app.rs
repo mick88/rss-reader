@@ -267,6 +267,26 @@ impl App {
                 }
             }
 
+            AppAction::DeleteFeed => {
+                if let Some(article) = self.selected_article() {
+                    let feed_id = article.feed_id;
+                    // Delete the feed (cascades to articles via foreign key)
+                    self.repository.delete_feed(feed_id).await?;
+                    // Remove all articles from this feed from local list
+                    self.articles.retain(|a| a.feed_id != feed_id);
+                    // Reload feeds list
+                    self.feeds = self.repository.get_all_feeds().await?;
+                    // Adjust selection if needed
+                    let len = self.filtered_articles().len();
+                    if len > 0 && self.selected_index >= len {
+                        self.selected_index = len - 1;
+                    }
+                    // Reset summary state
+                    self.summary_status = SummaryStatus::NotGenerated;
+                    self.current_summary = None;
+                }
+            }
+
             AppAction::UndeleteArticle => {
                 if let Some((feed_id, guid)) = self.last_deleted.take() {
                     self.repository.undelete_article(feed_id, &guid).await?;
