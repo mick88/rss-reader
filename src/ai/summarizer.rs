@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{AppError, Result};
 
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
-const CLAUDE_MODEL: &str = "claude-sonnet-4-20250514";
+const CLAUDE_MODEL: &str = "claude-3-5-haiku-20241022";
 
 #[derive(Debug, Serialize)]
 struct MessageRequest {

@@ -32,6 +32,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 
 # URL parsing
 url = "2.5"
+urlencoding = "2.1"
 
 # Feed Parsing
 feed-rs = "2.3"

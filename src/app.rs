@@ -163,6 +163,12 @@ impl App {
                 }
             }
 
+            AppAction::EmailArticle => {
+                if let Some(article) = self.selected_article() {
+                    self.email_article(article);
+                }
+            }
+
             AppAction::SaveToRaindrop => {
                 if self.raindrop.is_some() && self.selected_article().is_some() {
                     self.tag_input_active = true;
@@ -265,6 +271,7 @@ impl App {
 
     async fn generate_summary(&mut self) -> Result<()> {
         let Some(summarizer) = &self.summarizer else {
+            self.summary_status = SummaryStatus::NoApiKey;
             return Ok(());
         };
 
@@ -523,5 +530,41 @@ impl App {
         self.refresh_feeds().await?;
 
         Ok(())
+    }
+
+    fn email_article(&self, article: &Article) {
+        let subject = urlencoding::encode(&article.title);
+
+        // Build email body with title, URL, summary (if available), and content
+        let mut body_parts = Vec::new();
+
+        // Add title
+        body_parts.push(format!("Title: {}", article.title));
+        body_parts.push(String::new()); // blank line
+
+        // Add URL
+        body_parts.push(format!("URL: {}", article.url));
+        body_parts.push(String::new()); // blank line
+
+        // Add AI summary if available
+        if let Some(summary) = &self.current_summary {
+            body_parts.push("AI Summary:".to_string());
+            body_parts.push(summary.content.clone());
+            body_parts.push(String::new()); // blank line
+        }
+
+        // Add article content if available
+        if let Some(content) = article.content_text.as_ref().or(article.content.as_ref()) {
+            body_parts.push("Article Content:".to_string());
+            body_parts.push(content.clone());
+        }
+
+        let body_text = body_parts.join("\n");
+        let body = urlencoding::encode(&body_text);
+
+        let mailto_url = format!("mailto:?subject={}&body={}", subject, body);
+
+        // Open the mailto link in the default email client
+        let _ = open::that(&mailto_url);
     }
 }

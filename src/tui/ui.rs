@@ -118,7 +118,7 @@ fn render_left_status(frame: &mut Frame, app: &App, area: Rect) {
     let status = if app.is_refreshing {
         "Refreshing feeds..."
     } else {
-        "j/k:nav  r:refresh  s:star  ?:help  q:quit"
+        "j/k:nav  r:refresh  s:star  e:email  ?:help  q:quit"
     };
 
     let paragraph = Paragraph::new(status).style(Style::default().fg(Color::DarkGray));
@@ -148,6 +148,7 @@ fn render_summary(frame: &mut Frame, app: &App, area: Rect) {
         SummaryStatus::NotGenerated => "Press Enter to generate summary...".to_string(),
         SummaryStatus::Generating => "Generating summary...".to_string(),
         SummaryStatus::Failed => "Failed to generate summary. Press 'g' to retry.".to_string(),
+        SummaryStatus::NoApiKey => "Claude API key not configured.\n\nPlease add your API key to:\n~/.config/rss-reader/config.toml\n\nExample:\nclaude_api_key = \"sk-ant-...\"".to_string(),
         SummaryStatus::Generated => app
             .current_summary
             .as_ref()
@@ -172,6 +173,7 @@ fn render_right_status(frame: &mut Frame, app: &App, area: Rect) {
         SummaryStatus::NotGenerated => "",
         SummaryStatus::Generating => "⏳ Generating...",
         SummaryStatus::Failed => "❌ Failed",
+        SummaryStatus::NoApiKey => "⚠️  No API key",
         SummaryStatus::Generated => "✓ Cached",
     };
 
@@ -224,10 +226,11 @@ fn render_help(frame: &mut Frame) {
         "   s        Toggle starred",
         "   m        Toggle read/unread",
         "   o        Open in browser",
+        "   e        Email article",
         "   S        Save to Raindrop.io",
         "   g        Regenerate summary",
         "   f        Cycle filter",
-        "   i        Import OPML",
+        "   d        Delete article",
         "",
         " General:",
         "   ?        Toggle this help",
