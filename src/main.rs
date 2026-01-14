@@ -98,6 +98,9 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Resul
     loop {
         terminal.draw(|frame| draw(frame, app))?;
 
+        // Advance spinner animation
+        app.tick_spinner();
+
         // Poll for completed summary results
         app.poll_summary_result().await?;
 

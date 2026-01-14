@@ -137,13 +137,13 @@ fn render_article_list(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_left_status(frame: &mut Frame, app: &App, area: Rect) {
-    let status = if app.is_refreshing {
-        "Refreshing feeds..."
+    let (status, color) = if app.is_refreshing {
+        (format!("{} Refreshing feeds...", app.spinner_char()), Color::Cyan)
     } else {
-        "j/k:nav  r:refresh  s:star  e:email  ?:help  q:quit"
+        ("j/k:nav  r:refresh  s:star  e:email  ?:help  q:quit".to_string(), Color::DarkGray)
     };
 
-    let paragraph = Paragraph::new(status).style(Style::default().fg(Color::DarkGray));
+    let paragraph = Paragraph::new(status).style(Style::default().fg(color));
     frame.render_widget(paragraph, area);
 }
 
@@ -187,7 +187,7 @@ fn render_feed_content(frame: &mut Frame, app: &App, area: Rect) {
 fn render_summary(frame: &mut Frame, app: &App, area: Rect) {
     let content = match app.summary_status {
         SummaryStatus::NotGenerated => "Press Enter to generate summary...".to_string(),
-        SummaryStatus::Generating => "Generating summary...".to_string(),
+        SummaryStatus::Generating => format!("{} Generating summary...", app.spinner_char()),
         SummaryStatus::Failed => "Failed to generate summary. Press 'g' to retry.".to_string(),
         SummaryStatus::NoApiKey => "Claude API key not configured.\n\nPlease add your API key to:\n~/.config/speedy-reader/config.toml\n\nExample:\nclaude_api_key = \"sk-ant-...\"".to_string(),
         SummaryStatus::Generated => app
@@ -211,11 +211,11 @@ fn render_summary(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_right_status(frame: &mut Frame, app: &App, area: Rect) {
     let status = match app.summary_status {
-        SummaryStatus::NotGenerated => "",
-        SummaryStatus::Generating => "⏳ Generating...",
-        SummaryStatus::Failed => "❌ Failed",
-        SummaryStatus::NoApiKey => "⚠️  No API key",
-        SummaryStatus::Generated => "✓ Cached",
+        SummaryStatus::NotGenerated => String::new(),
+        SummaryStatus::Generating => format!("{} Generating...", app.spinner_char()),
+        SummaryStatus::Failed => "❌ Failed".to_string(),
+        SummaryStatus::NoApiKey => "⚠️  No API key".to_string(),
+        SummaryStatus::Generated => "✓ Cached".to_string(),
     };
 
     let raindrop_status = if app.selected_article().map(|a| a.id).is_some() {
@@ -278,16 +278,18 @@ fn render_feed_input(frame: &mut Frame, app: &App) {
 
     // Show status message if any
     if let Some(status) = &app.feed_input_status {
-        let color = if status.starts_with("Added:") {
-            Color::Green
+        let (display_status, color) = if status.starts_with("Added:") {
+            (status.clone(), Color::Green)
         } else if status.starts_with("Error:") || status.starts_with("Not found:") {
-            Color::Red
+            (status.clone(), Color::Red)
         } else if status.starts_with("Feed already") {
-            Color::Yellow
+            (status.clone(), Color::Yellow)
+        } else if status == "Searching..." {
+            (format!("{} Searching...", app.spinner_char()), Color::Cyan)
         } else {
-            Color::DarkGray
+            (status.clone(), Color::DarkGray)
         };
-        let status_paragraph = Paragraph::new(status.as_str()).style(Style::default().fg(color));
+        let status_paragraph = Paragraph::new(display_status).style(Style::default().fg(color));
         frame.render_widget(status_paragraph, chunks[1]);
     }
 }
@@ -318,14 +320,16 @@ fn render_opml_input(frame: &mut Frame, app: &App) {
 
     // Show status message if any
     if let Some(status) = &app.opml_input_status {
-        let color = if status.starts_with("Imported") {
-            Color::Green
+        let (display_status, color) = if status.starts_with("Imported") {
+            (status.clone(), Color::Green)
         } else if status.starts_with("Error:") || status.starts_with("Not found:") {
-            Color::Red
+            (status.clone(), Color::Red)
+        } else if status == "Importing..." {
+            (format!("{} Importing...", app.spinner_char()), Color::Yellow)
         } else {
-            Color::DarkGray
+            (status.clone(), Color::DarkGray)
         };
-        let status_paragraph = Paragraph::new(status.as_str()).style(Style::default().fg(color));
+        let status_paragraph = Paragraph::new(display_status).style(Style::default().fg(color));
         frame.render_widget(status_paragraph, chunks[1]);
     }
 }

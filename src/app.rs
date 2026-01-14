@@ -38,6 +38,7 @@ pub struct App {
     pub opml_input: String,
     pub opml_input_status: Option<String>,
     pub is_saved_to_raindrop: bool,
+    pub spinner_frame: usize,
     selection_time: Option<Instant>,
 
     // Async state
@@ -99,6 +100,7 @@ impl App {
             opml_input: String::new(),
             opml_input_status: None,
             is_saved_to_raindrop: false,
+            spinner_frame: 0,
             selection_time: None,
             is_refreshing: false,
             summary_status: SummaryStatus::NotGenerated,
@@ -402,6 +404,17 @@ impl App {
         // Database is already updated, so it will show as read next session
 
         Ok(())
+    }
+
+    /// Advance the spinner animation frame
+    pub fn tick_spinner(&mut self) {
+        self.spinner_frame = (self.spinner_frame + 1) % 10;
+    }
+
+    /// Get the current spinner character
+    pub fn spinner_char(&self) -> char {
+        const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        SPINNER[self.spinner_frame]
     }
 
     /// Poll for completed summary results (non-blocking)
