@@ -54,10 +54,10 @@ impl Summarizer {
         article_title: &str,
         article_content: &str,
     ) -> Result<String> {
-        let system_prompt = r#"You are a helpful assistant that summarizes news articles.
-Provide a concise, informative summary in 2-3 paragraphs.
-Focus on the key facts, main arguments, and important conclusions.
-Use clear, accessible language."#;
+        let system_prompt = r#"Summarize this article as 3-5 bullet points.
+Output ONLY the bullet points - no introductions, conclusions, or commentary.
+Start each line with "• " and state one key fact or finding.
+Never write phrases like "Here are the key points" or "In summary" - just the bullets."#;
 
         // Truncate content if too long
         let content = if article_content.len() > 10000 {

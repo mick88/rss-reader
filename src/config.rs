@@ -21,7 +21,7 @@ pub struct Config {
 fn default_db_path() -> String {
     let data_dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("rss-reader");
+        .join("speedy-reader");
     std::fs::create_dir_all(&data_dir).ok();
     data_dir.join("feeds.db").to_string_lossy().to_string()
 }
@@ -71,7 +71,7 @@ impl Config {
     pub fn config_path() -> PathBuf {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("rss-reader")
+            .join("speedy-reader")
             .join("config.toml")
     }
 }

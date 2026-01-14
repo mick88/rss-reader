@@ -1,6 +1,6 @@
 [package]
-name = "rss-reader"
-version = "0.1.0"
+name = "speedy-reader"
+version = "1.0.0"
 edition = "2021"
 description = "A TUI RSS reader with AI-powered summaries"
 license = "MIT"
@@ -72,6 +72,7 @@ futures = "0.3"
 
 # Open URLs in browser
 open = "5"
+regex = "1.12.2"
 
 [dev-dependencies]
 tokio-test = "0.4"

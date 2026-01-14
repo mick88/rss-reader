@@ -31,6 +31,9 @@ pub struct App {
     pub show_help: bool,
     pub tag_input_active: bool,
     pub tag_input: String,
+    pub feed_input_active: bool,
+    pub feed_input: String,
+    pub feed_input_status: Option<String>,
     pub is_saved_to_raindrop: bool,
     selection_time: Option<Instant>,
 
@@ -86,6 +89,9 @@ impl App {
             show_help: false,
             tag_input_active: false,
             tag_input: String::new(),
+            feed_input_active: false,
+            feed_input: String::new(),
+            feed_input_status: None,
             is_saved_to_raindrop: false,
             selection_time: None,
             is_refreshing: false,
@@ -241,6 +247,30 @@ impl App {
                 self.tag_input_active = false;
                 self.tag_input.clear();
             }
+
+            AppAction::AddFeed => {
+                self.feed_input_active = true;
+                self.feed_input.clear();
+                self.feed_input_status = None;
+            }
+
+            AppAction::FeedInputChar(c) => {
+                self.feed_input.push(c);
+            }
+
+            AppAction::FeedInputBackspace => {
+                self.feed_input.pop();
+            }
+
+            AppAction::FeedInputConfirm => {
+                self.add_feed_from_url().await?;
+            }
+
+            AppAction::FeedInputCancel => {
+                self.feed_input_active = false;
+                self.feed_input.clear();
+                self.feed_input_status = None;
+            }
         }
 
         Ok(false)
@@ -250,9 +280,10 @@ impl App {
         // Don't reload articles - keep read articles visible until program closes
         // They'll just appear unhighlighted in the list
 
-        // Reset summary state when selection changes
+        // Reset state when selection changes
         self.summary_status = SummaryStatus::NotGenerated;
         self.current_summary = None;
+        self.is_saved_to_raindrop = false;
 
         // Start the read timer for the new selection
         self.selection_time = Some(Instant::now());
@@ -411,6 +442,61 @@ impl App {
         Ok(())
     }
 
+    /// Add a new feed from a URL (direct RSS/Atom or webpage with feed discovery)
+    async fn add_feed_from_url(&mut self) -> Result<()> {
+        let url = self.feed_input.trim().to_string();
+        if url.is_empty() {
+            self.feed_input_active = false;
+            return Ok(());
+        }
+
+        // Normalize URL - add https:// if no protocol specified
+        let url = if !url.starts_with("http://") && !url.starts_with("https://") {
+            format!("https://{}", url)
+        } else {
+            url
+        };
+
+        self.feed_input_status = Some("Discovering feed...".to_string());
+
+        match self.fetcher.discover_feed(&url).await {
+            Ok(new_feed) => {
+                // Check if feed already exists
+                if self.feeds.iter().any(|f| f.url == new_feed.url) {
+                    self.feed_input_status = Some(format!("Feed already exists: {}", new_feed.title));
+                    return Ok(());
+                }
+
+                let feed_title = new_feed.title.clone();
+                match self.repository.insert_feed(new_feed).await {
+                    Ok(feed_id) => {
+                        self.feed_input_status = Some(format!("Added: {}", feed_title));
+                        tracing::info!("Added new feed: {} (id={})", feed_title, feed_id);
+
+                        // Reload feeds list
+                        self.feeds = self.repository.get_all_feeds().await?;
+
+                        // Clear input after short delay to show success message
+                        self.feed_input_active = false;
+                        self.feed_input.clear();
+
+                        // Refresh the new feed
+                        self.refresh_feeds().await?;
+                    }
+                    Err(e) => {
+                        self.feed_input_status = Some(format!("Error: {}", e));
+                        tracing::error!("Failed to insert feed: {}", e);
+                    }
+                }
+            }
+            Err(_) => {
+                self.feed_input_status = Some("No feed here.".to_string());
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn refresh_feeds(&mut self) -> Result<()> {
         self.is_refreshing = true;
 
@@ -461,20 +547,11 @@ impl App {
         let url = article.url.clone();
         let title = article.title.clone();
 
-        // Get excerpt: prefer full summary (cleaned), fall back to first sentence of article content
+        // Get excerpt: first sentence of summary (cleaned), or first sentence of article content
         let excerpt = self
             .current_summary
             .as_ref()
-            .map(|s| {
-                // Remove "Summary:" prefix and clean up blank lines
-                s.content
-                    .lines()
-                    .filter(|line| !line.trim().is_empty() && !line.trim().eq_ignore_ascii_case("summary:"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    .trim()
-                    .to_string()
-            })
+            .map(|s| Self::clean_summary_for_excerpt(&s.content))
             .filter(|s| !s.is_empty())
             .or_else(|| {
                 article
@@ -484,8 +561,11 @@ impl App {
                     .map(|c| Self::get_first_sentence(c))
             });
 
+        // Get AI summary for note field (if available)
+        let note = self.current_summary.as_ref().map(|s| s.content.clone());
+
         match raindrop
-            .save_bookmark(&url, Some(&title), excerpt.as_deref(), tags.clone())
+            .save_bookmark(&url, Some(&title), excerpt.as_deref(), note.as_deref(), tags.clone())
             .await
         {
             Ok(raindrop_id) => {
@@ -532,6 +612,42 @@ impl App {
         } else {
             first_sentence.to_string()
         }
+    }
+
+    /// Clean AI summary prefixes and extract first sentence for Raindrop excerpt
+    fn clean_summary_for_excerpt(summary: &str) -> String {
+        // Common AI summary prefixes to strip
+        let prefixes = [
+            "summary:",
+            "here's the summary of the article:",
+            "here's a summary of the article:",
+            "here is the summary of the article:",
+            "here is a summary of the article:",
+            "here's the summary:",
+            "here's a summary:",
+            "here is the summary:",
+            "here is a summary:",
+        ];
+
+        // Skip blank lines and find first non-empty line
+        let mut text = summary
+            .lines()
+            .map(|line| line.trim())
+            .skip_while(|line| line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        // Strip common prefixes (case-insensitive)
+        let text_lower = text.to_lowercase();
+        for prefix in &prefixes {
+            if text_lower.starts_with(prefix) {
+                text = text[prefix.len()..].trim_start().to_string();
+                break;
+            }
+        }
+
+        // Extract first sentence
+        Self::get_first_sentence(&text)
     }
 
     pub async fn import_opml(&mut self, path: &Path) -> Result<()> {

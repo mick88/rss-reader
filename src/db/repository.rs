@@ -86,6 +86,17 @@ impl Repository {
         let id = self
             .conn
             .call(move |conn| {
+                // Check if this article was previously deleted
+                let was_deleted: bool = conn.query_row(
+                    "SELECT 1 FROM deleted_articles WHERE feed_id = ?1 AND guid = ?2",
+                    params![article.feed_id, article.guid],
+                    |_| Ok(true),
+                ).unwrap_or(false);
+
+                if was_deleted {
+                    return Ok(0); // Skip deleted articles
+                }
+
                 conn.execute(
                     r#"INSERT INTO articles (feed_id, guid, title, url, author, content, content_text, published_at)
                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -163,6 +174,12 @@ impl Repository {
     pub async fn delete_article(&self, id: i64) -> Result<()> {
         self.conn
             .call(move |conn| {
+                // Record the article's feed_id and guid before deleting (to prevent re-adding)
+                conn.execute(
+                    r#"INSERT OR IGNORE INTO deleted_articles (feed_id, guid)
+                       SELECT feed_id, guid FROM articles WHERE id = ?1"#,
+                    params![id],
+                )?;
                 // Delete related data first
                 conn.execute("DELETE FROM summaries WHERE article_id = ?1", params![id])?;
                 conn.execute(

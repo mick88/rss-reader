@@ -2,10 +2,11 @@ use std::time::Duration;
 
 use feed_rs::parser;
 use futures::stream::{self, StreamExt};
+use regex::Regex;
 use reqwest::Client;
 
 use crate::error::Result;
-use crate::models::{Feed, NewArticle};
+use crate::models::{Feed, NewArticle, NewFeed};
 
 pub struct FeedFetcher {
     client: Client,
@@ -16,7 +17,7 @@ impl FeedFetcher {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .connect_timeout(Duration::from_secs(10))
-            .user_agent("rss-reader/0.1")
+            .user_agent("speedy-reader/1.0")
             .build()
             .expect("Failed to create HTTP client");
 
@@ -92,6 +93,111 @@ impl FeedFetcher {
             .await;
 
         results
+    }
+
+    /// Discover and create a feed from a URL
+    /// If the URL is a direct RSS/Atom feed, parse it directly
+    /// If it's an HTML page, look for feed links in <link> tags
+    pub async fn discover_feed(&self, url: &str) -> Result<NewFeed> {
+        let response = self.client.get(url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!("Failed to fetch URL: HTTP {}", response.status()).into());
+        }
+
+        let final_url = response.url().to_string();
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        let bytes = response.bytes().await?;
+
+        // Try parsing as RSS/Atom feed first
+        if let Ok(feed) = parser::parse(&bytes[..]) {
+            let title = feed
+                .title
+                .map(|t| t.content)
+                .unwrap_or_else(|| "Untitled Feed".to_string());
+            let description = feed.description.map(|d| d.content);
+            let site_url = feed.links.first().map(|l| l.href.clone());
+
+            return Ok(NewFeed {
+                title,
+                url: final_url,
+                site_url,
+                description,
+            });
+        }
+
+        // If content looks like HTML, search for feed links
+        if content_type.contains("html") || bytes.starts_with(b"<!") || bytes.starts_with(b"<html") {
+            let html = String::from_utf8_lossy(&bytes);
+            if let Some(feed_url) = self.find_feed_link(&html, &final_url) {
+                // Fetch the discovered feed URL
+                let feed_response = self.client.get(&feed_url).send().await?;
+                if feed_response.status().is_success() {
+                    let feed_bytes = feed_response.bytes().await?;
+                    if let Ok(feed) = parser::parse(&feed_bytes[..]) {
+                        let title = feed
+                            .title
+                            .map(|t| t.content)
+                            .unwrap_or_else(|| "Untitled Feed".to_string());
+                        let description = feed.description.map(|d| d.content);
+                        let site_url = feed.links.first().map(|l| l.href.clone());
+
+                        return Ok(NewFeed {
+                            title,
+                            url: feed_url,
+                            site_url,
+                            description,
+                        });
+                    }
+                }
+            }
+        }
+
+        Err(anyhow::anyhow!("Could not find RSS/Atom feed at this URL").into())
+    }
+
+    /// Search HTML for RSS/Atom feed links
+    fn find_feed_link(&self, html: &str, base_url: &str) -> Option<String> {
+        // Look for <link rel="alternate" type="application/rss+xml" href="...">
+        // or <link rel="alternate" type="application/atom+xml" href="...">
+        let link_re = Regex::new(
+            r#"<link[^>]*rel=["']alternate["'][^>]*type=["']application/(rss|atom)\+xml["'][^>]*href=["']([^"']+)["']"#
+        ).ok()?;
+
+        // Also try reverse order (type before rel)
+        let link_re2 = Regex::new(
+            r#"<link[^>]*type=["']application/(rss|atom)\+xml["'][^>]*href=["']([^"']+)["']"#
+        ).ok()?;
+
+        let href = link_re
+            .captures(html)
+            .or_else(|| link_re2.captures(html))
+            .and_then(|cap: regex::Captures| cap.get(2))
+            .map(|m: regex::Match| m.as_str().to_string())?;
+
+        // Resolve relative URLs
+        Some(self.resolve_url(&href, base_url))
+    }
+
+    /// Resolve a potentially relative URL against a base URL
+    fn resolve_url(&self, href: &str, base_url: &str) -> String {
+        if href.starts_with("http://") || href.starts_with("https://") {
+            return href.to_string();
+        }
+
+        if let Ok(base) = url::Url::parse(base_url) {
+            if let Ok(resolved) = base.join(href) {
+                return resolved.to_string();
+            }
+        }
+
+        href.to_string()
     }
 }
 

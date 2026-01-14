@@ -29,13 +29,14 @@ pub fn draw(frame: &mut Frame, app: &App) {
         ])
         .split(main_chunks[0]);
 
-    // Right pane: title + summary content + status
+    // Right pane: title + feed content + AI summary + status
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Article title
-            Constraint::Min(0),    // Summary content
-            Constraint::Length(1), // Status (generating/cached)
+            Constraint::Length(3),   // Article title
+            Constraint::Percentage(30), // Feed content (30%)
+            Constraint::Percentage(70), // AI summary (70%)
+            Constraint::Length(1),   // Status (generating/cached)
         ])
         .split(main_chunks[1]);
 
@@ -46,12 +47,18 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     // Render right pane
     render_article_title(frame, app, right_chunks[0]);
-    render_summary(frame, app, right_chunks[1]);
-    render_right_status(frame, app, right_chunks[2]);
+    render_feed_content(frame, app, right_chunks[1]);
+    render_summary(frame, app, right_chunks[2]);
+    render_right_status(frame, app, right_chunks[3]);
 
     // Render tag input popup if active
     if app.tag_input_active {
         render_tag_input(frame, app);
+    }
+
+    // Render feed input popup if active
+    if app.feed_input_active {
+        render_feed_input(frame, app);
     }
 
     // Render help popup if active
@@ -65,7 +72,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     let total_articles = app.articles.len();
     let unread_count = app.articles.iter().filter(|a| !a.is_read).count();
 
-    let title = format!(" RSS Reader [{filter_label}] ");
+    let title = format!(" SpeedyReader [{filter_label}] ");
     let stats = format!(" {} Stories | {} Unread", total_articles, unread_count);
 
     let block = Block::default()
@@ -153,12 +160,31 @@ fn render_article_title(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(paragraph, area);
 }
 
+fn render_feed_content(frame: &mut Frame, app: &App, area: Rect) {
+    let content = app
+        .selected_article()
+        .and_then(|a| a.content_text.as_ref().or(a.content.as_ref()))
+        .map(|c| c.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_else(|| "No content available".to_string());
+
+    let block = Block::default()
+        .title(" Feed Content ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Blue));
+
+    let paragraph = Paragraph::new(content)
+        .block(block)
+        .wrap(Wrap { trim: true });
+
+    frame.render_widget(paragraph, area);
+}
+
 fn render_summary(frame: &mut Frame, app: &App, area: Rect) {
     let content = match app.summary_status {
         SummaryStatus::NotGenerated => "Press Enter to generate summary...".to_string(),
         SummaryStatus::Generating => "Generating summary...".to_string(),
         SummaryStatus::Failed => "Failed to generate summary. Press 'g' to retry.".to_string(),
-        SummaryStatus::NoApiKey => "Claude API key not configured.\n\nPlease add your API key to:\n~/.config/rss-reader/config.toml\n\nExample:\nclaude_api_key = \"sk-ant-...\"".to_string(),
+        SummaryStatus::NoApiKey => "Claude API key not configured.\n\nPlease add your API key to:\n~/.config/speedy-reader/config.toml\n\nExample:\nclaude_api_key = \"sk-ant-...\"".to_string(),
         SummaryStatus::Generated => app
             .current_summary
             .as_ref()
@@ -167,7 +193,7 @@ fn render_summary(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let block = Block::default()
-        .title(" Summary ")
+        .title(" AI Summary ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Magenta));
 
@@ -191,7 +217,7 @@ fn render_right_status(frame: &mut Frame, app: &App, area: Rect) {
         if app.is_saved_to_raindrop {
             " | 💧 Saved"
         } else {
-            " | S:save to Raindrop"
+            " | b:bookmark"
         }
     } else {
         ""
@@ -221,6 +247,46 @@ fn render_tag_input(frame: &mut Frame, app: &App) {
     frame.render_widget(paragraph, inner);
 }
 
+fn render_feed_input(frame: &mut Frame, app: &App) {
+    let area = centered_rect(70, 25, frame.area());
+
+    let block = Block::default()
+        .title(" Add Feed - Enter URL or website address ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+
+    // Clear the area first
+    frame.render_widget(ratatui::widgets::Clear, area);
+    frame.render_widget(block, area);
+
+    // Split inner area for input and status
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1), Constraint::Min(0)])
+        .split(inner);
+
+    let input_text = format!("> {}_", app.feed_input);
+    let paragraph = Paragraph::new(input_text).style(Style::default().fg(Color::White));
+    frame.render_widget(paragraph, chunks[0]);
+
+    // Show status message if any
+    if let Some(status) = &app.feed_input_status {
+        let color = if status.starts_with("Added:") {
+            Color::Green
+        } else if status.starts_with("Error:") || status.starts_with("Not found:") {
+            Color::Red
+        } else if status.starts_with("Feed already") {
+            Color::Yellow
+        } else {
+            Color::DarkGray
+        };
+        let status_paragraph = Paragraph::new(status.as_str()).style(Style::default().fg(color));
+        frame.render_widget(status_paragraph, chunks[1]);
+    }
+}
+
 fn render_help(frame: &mut Frame) {
     let area = centered_rect(50, 60, frame.area());
 
@@ -233,11 +299,12 @@ fn render_help(frame: &mut Frame) {
         "",
         " Actions:",
         "   r        Refresh all feeds",
+        "   a        Add new feed",
         "   s        Toggle starred",
         "   m        Toggle read/unread",
         "   o        Open in browser",
         "   e        Email article",
-        "   S        Save to Raindrop.io",
+        "   b        Save to Raindrop.io",
         "   g        Regenerate summary",
         "   f        Cycle filter",
         "   d        Delete article",

@@ -53,4 +53,15 @@ CREATE TABLE IF NOT EXISTS saved_to_raindrop (
     tags TEXT,
     saved_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- deleted_articles table (prevents re-adding deleted articles on refresh)
+CREATE TABLE IF NOT EXISTS deleted_articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
+    guid TEXT NOT NULL,
+    deleted_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(feed_id, guid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_deleted_articles_feed_guid ON deleted_articles(feed_id, guid);
 "#;

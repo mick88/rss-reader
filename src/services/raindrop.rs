@@ -18,6 +18,8 @@ struct CreateRaindropRequest {
     link: String,
     title: Option<String>,
     excerpt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    note: Option<String>,
     tags: Vec<String>,
     #[serde(rename = "pleaseParse")]
     please_parse: PleaseParse,
@@ -121,6 +123,7 @@ impl RaindropClient {
         url: &str,
         title: Option<&str>,
         excerpt: Option<&str>,
+        note: Option<&str>,
         tags: Vec<String>,
     ) -> Result<i64> {
         // Get the News collection ID
@@ -133,6 +136,7 @@ impl RaindropClient {
             link: url.to_string(),
             title: title.map(|s| s.to_string()),
             excerpt: excerpt.map(|s| s.to_string()),
+            note: note.map(|s| s.to_string()),
             tags,
             please_parse: PleaseParse {},
             collection,
