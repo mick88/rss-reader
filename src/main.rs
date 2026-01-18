@@ -7,7 +7,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use crossterm::event::{KeyEventKind, KeyEventState};
+use crossterm::event::{KeyEventKind};
 use ratatui::prelude::*;
 
 mod ai;
